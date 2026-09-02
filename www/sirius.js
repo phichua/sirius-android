@@ -283,6 +283,20 @@ export class Sirius extends EventTarget {
     if (b) { this.battery = b; this.changed(); }
   }
 
+  /**
+   * The MJPEG server answers on /video_stream even when nothing is publishing
+   * into it - you get headers, then silence, and the picture never appears.
+   * enable_detection is what actually starts the frames ("Web streaming
+   * enabled"), so the camera must always be switched on before the <img> loads.
+   */
+  async enableVision(on) {
+    const r = await this.request("enable_detection", { enabled: !!on });
+    this.note(on
+      ? (r ? "camera streaming on" : "could not start the camera")
+      : "camera streaming off");
+    return r !== null;
+  }
+
   streamUrl() {
     return `http://${this.host}:${PORT_VIDEO}/video_stream`;
   }

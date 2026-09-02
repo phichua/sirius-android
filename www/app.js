@@ -34,7 +34,9 @@ async function doConnect() {
 }
 $("#go").onclick = doConnect;
 $("#host").addEventListener("keydown", (e) => { if (e.key === "Enter") doConnect(); });
-$("#disconnect").onclick = () => {
+$("#disconnect").onclick = async () => {
+  camStop();
+  if (dog.connected) await dog.enableVision(false);
   dog.disconnect();
   releaseScreen();
   $("#gate").classList.remove("hide");
@@ -149,10 +151,13 @@ function camStop(msg) {
   $("#camMsg").hidden = false;
   $("#camMsg").textContent = msg || "Camera off";
 }
-$("#camOn").onclick = () => {
+$("#camOn").onclick = async () => {
   if (!dog.connected) { camStop("Connect first."); return; }
   camStop();
-  $("#camMsg").textContent = "Starting…";
+  $("#camMsg").textContent = "Starting the camera…";
+  // Without this the stream connects and then sits silent forever.
+  const ok = await dog.enableVision(true);
+  if (!ok) { camStop("The dog refused to start the camera."); return; }
   const img = document.createElement("img");
   img.alt = "Live view from the camera in the dog's head";
   img.onload = () => { $("#camMsg").hidden = true; };
@@ -161,7 +166,10 @@ $("#camOn").onclick = () => {
   camImg = img;
   $("#camBox").appendChild(img);
 };
-$("#camOff").onclick = () => camStop();
+$("#camOff").onclick = () => {
+  camStop();
+  if (dog.connected) dog.enableVision(false);   // stop burning battery on both ends
+};
 
 /* ---------------- safety ---------------- */
 // Keep the screen awake while connected: a phone that sleeps mid-drive with a
