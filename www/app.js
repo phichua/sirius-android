@@ -159,41 +159,104 @@ $("#actions").addEventListener("click", (e) => {
 });
 
 /* ---------------- camera ---------------- */
+// The dog serves multipart/x-mixed-replace on :8080. Android WebView refuses to
+// render that inside an <img>, so we fetch the stream and split it into single
+// JPEGs, handing the <img> one complete frame at a time - which renders
+// everywhere. If the fetch is blocked (e.g. CORS), we fall back to pointing the
+// <img> straight at the stream, which is enough on desktop.
 let camImg = null;
+let camAbort = null;
+
 function camStop(msg) {
-  if (camImg) { camImg.remove(); camImg = null; }
+  if (camAbort) { try { camAbort.abort(); } catch (e) { /* already done */ } camAbort = null; }
+  if (camImg) {
+    if (camImg._url) { try { URL.revokeObjectURL(camImg._url); } catch (e) { /* gone */ } }
+    camImg.remove();
+    camImg = null;
+  }
   $("#camMsg").hidden = false;
   $("#camMsg").textContent = msg || "Camera off";
 }
+
 $("#camOn").onclick = async () => {
   if (!dog.connected) { camStop("Connect first."); return; }
   camStop();
   $("#camMsg").textContent = "Starting the camera…";
-  // Without this the stream connects and then sits silent forever.
   const ok = await dog.enableVision(true);
   if (!ok) { camStop("The dog refused to start the camera."); return; }
+
   const img = document.createElement("img");
   img.alt = "Live view from the camera in the dog's head";
-  // A multipart MJPEG stream never finishes loading, so `load` may never fire
-  // even while frames are painting. Reveal on load if it comes, otherwise
-  // after a grace period; onerror stays the only failure signal.
-  let settled = false;
-  const reveal = () => { if (!settled) { settled = true; $("#camMsg").hidden = true; } };
-  img.onload = reveal;
-  img.onerror = () => {
-    if (settled) return;
-    settled = true;
-    camStop("No MJPEG stream on port 8080.");
-  };
-  setTimeout(reveal, 2500);
-  img.src = dog.streamUrl() + "?t=" + Date.now();
   camImg = img;
   $("#camBox").appendChild(img);
+
+  let settled = false;
+  const reveal = () => { if (!settled) { settled = true; $("#camMsg").hidden = true; } };
+  const url = dog.streamUrl() + "?t=" + Date.now();
+
+  try {
+    const ctrl = new AbortController();
+    camAbort = ctrl;
+    const resp = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+    if (!resp.ok || !resp.body) throw new Error("no stream body");
+    pumpMjpeg(resp.body.getReader(), img, reveal);
+  } catch (e) {
+    // Cross-origin read blocked or fetch unsupported: let the <img> try directly.
+    camAbort = null;
+    img.onload = reveal;
+    img.onerror = () => {
+      if (settled) return;
+      settled = true;
+      camStop("Could not display the camera on this device.");
+    };
+    setTimeout(reveal, 2500);
+    img.src = url;
+  }
 };
+
 $("#camOff").onclick = () => {
   camStop();
   if (dog.connected) dog.enableVision(false);   // stop burning battery on both ends
 };
+
+// Read the multipart stream, emit each complete JPEG (FF D8 FF ... FF D9) into
+// the <img> as a blob URL. Buffer is trimmed so it never grows without bound.
+async function pumpMjpeg(reader, img, reveal) {
+  let buf = new Uint8Array(0);
+  const concat = (a, b) => { const c = new Uint8Array(a.length + b.length); c.set(a); c.set(b, a.length); return c; };
+  const findSOI = (b, from) => {
+    for (let i = from; i + 2 < b.length; i++) if (b[i] === 0xFF && b[i + 1] === 0xD8 && b[i + 2] === 0xFF) return i;
+    return -1;
+  };
+  const findEOI = (b, from) => {
+    for (let i = from; i + 1 < b.length; i++) if (b[i] === 0xFF && b[i + 1] === 0xD9) return i + 2;
+    return -1;
+  };
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) { camStop("Camera stream ended."); return; }
+      if (img !== camImg) return;                 // camera was stopped
+      buf = concat(buf, value);
+      for (;;) {
+        const start = findSOI(buf, 0);
+        if (start < 0) { if (buf.length > (1 << 20)) buf = buf.slice(buf.length - 2); break; }
+        const end = findEOI(buf, start + 3);
+        if (end < 0) { if (start > 0) buf = buf.slice(start); break; }
+        const frame = buf.slice(start, end);
+        buf = buf.slice(end);
+        const next = URL.createObjectURL(new Blob([frame], { type: "image/jpeg" }));
+        const prev = img._url;
+        img._url = next;
+        img.src = next;
+        reveal();
+        if (prev) URL.revokeObjectURL(prev);
+      }
+    }
+  } catch (e) {
+    if (img === camImg) camStop("Camera stream stopped.");
+  }
+}
 
 /* ---------------- safety ---------------- */
 // Keep the screen awake while connected: a phone that sleeps mid-drive with a
