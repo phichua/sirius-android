@@ -92,10 +92,12 @@
   .act small{color:var(--dim);display:block;font-size:var(--fs-micro);margin-top:3px}
 
   #camBox{position:relative;background:#0a0d12;border:1px solid var(--line);
-    border-radius:12px;aspect-ratio:4/3;display:grid;place-items:center;overflow:hidden}
-  /* Absolute so the picture owns the whole box - a sibling message must never
-     share the grid and squash it. */
-  #camBox img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+    border-radius:12px;aspect-ratio:16/9;display:grid;place-items:center;overflow:hidden}
+  /* The camera is shown in an <iframe> as a document load, because recent
+     Chromium renders multipart/x-mixed-replace only as a document, not in an
+     <img>. The frame is the native 640x360 and CSS-scaled to fill the box. */
+  #camBox iframe{position:absolute;top:0;left:0;width:640px;height:360px;border:0;
+    transform-origin:top left;pointer-events:none;background:#0a0d12}
   #camMsg{margin:0;color:var(--dim);font-size:var(--fs-label);text-align:center;padding:0 18px}
 
   #log{background:#0a0d12;border:1px solid var(--line);border-radius:10px;padding:10px;
