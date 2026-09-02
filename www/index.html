@@ -93,9 +93,9 @@
 
   #camBox{position:relative;background:#0a0d12;border:1px solid var(--line);
     border-radius:12px;aspect-ratio:16/9;display:grid;place-items:center;overflow:hidden}
-  /* The camera is shown in an <iframe> as a document load, because recent
-     Chromium renders multipart/x-mixed-replace only as a document, not in an
-     <img>. The frame is the native 640x360 and CSS-scaled to fill the box. */
+  /* The camera is shown in an iframe as a document load, because recent
+     Chromium renders multipart/x-mixed-replace only as a document, not as an
+     image sub-resource. The frame is native 640x360, CSS-scaled to the box. */
   #camBox iframe{position:absolute;top:0;left:0;width:640px;height:360px;border:0;
     transform-origin:top left;pointer-events:none;background:#0a0d12}
   #camMsg{margin:0;color:var(--dim);font-size:var(--fs-label);text-align:center;padding:0 18px}
