@@ -1,0 +1,18 @@
+node_modules/
+out/
+
+# Android build output - the APK comes from CI, not from the repo
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/capacitor-cordova-android-plugins/
+
+# Capacitor copies www into the Android project at build time
+android/app/src/main/assets/public/
+
+.DS_Store
+Thumbs.db
+__pycache__/
