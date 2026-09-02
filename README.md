@@ -104,6 +104,22 @@ Both are set. Change either and the app will connect to nothing.
 
 ---
 
+## Support this
+
+Free, and it stays free. It exists because the official app never shipped a
+working build and a lot of us ended up with an expensive paperweight — the
+protocol here was reconstructed by probing a real robot, and it is documented
+in full above so anyone can build on it.
+
+If it brought your dog back to life and you feel like saying thanks, PayPal
+donations are welcome and entirely optional:
+
+**`philipchuaonline@gmail.com`**
+
+No obligation whatsoever. Bug reports, firmware findings from other versions,
+and pull requests are worth just as much — especially if you can confirm the
+`attitude_control` field names, or map the command set on 2.4.5+.
+
 ## Developing
 
 ```bash
