@@ -174,8 +174,18 @@ $("#camOn").onclick = async () => {
   if (!ok) { camStop("The dog refused to start the camera."); return; }
   const img = document.createElement("img");
   img.alt = "Live view from the camera in the dog's head";
-  img.onload = () => { $("#camMsg").hidden = true; };
-  img.onerror = () => camStop("No MJPEG stream on port 8080.");
+  // A multipart MJPEG stream never finishes loading, so `load` may never fire
+  // even while frames are painting. Reveal on load if it comes, otherwise
+  // after a grace period; onerror stays the only failure signal.
+  let settled = false;
+  const reveal = () => { if (!settled) { settled = true; $("#camMsg").hidden = true; } };
+  img.onload = reveal;
+  img.onerror = () => {
+    if (settled) return;
+    settled = true;
+    camStop("No MJPEG stream on port 8080.");
+  };
+  setTimeout(reveal, 2500);
   img.src = dog.streamUrl() + "?t=" + Date.now();
   camImg = img;
   $("#camBox").appendChild(img);
