@@ -159,23 +159,31 @@ $("#actions").addEventListener("click", (e) => {
 });
 
 /* ---------------- camera ---------------- */
-// Recent Chromium dropped multipart/x-mixed-replace support for <img> (and for
-// fetch), but kept it for document loads - which is why the stream renders in a
-// browser tab but not in an <img>. So we load it in an <iframe> (a document)
-// and CSS-scale the frame to fill the box. No CORS or fetch needed.
+// On the device, frames come from the native CameraStream plugin (a native
+// socket read is immune to the WebView policies that blocked <img>, fetch and
+// iframe). Each frame is a complete base64 JPEG shown via a data: URI. In a
+// plain browser (dev) the plugin is absent, so we fall back to an iframe.
+const CameraStream = (window.Capacitor && window.Capacitor.Plugins
+  && window.Capacitor.Plugins.CameraStream) || null;
+
+let camImg = null;
 let camFrame = null;
+let camListeners = [];
 let camReveal = null;
 
 function fitCamera() {
   if (!camFrame) return;
-  const s = $("#camBox").clientWidth / 640;   // native width is 640
-  camFrame.style.transform = "scale(" + s + ")";
+  camFrame.style.transform = "scale(" + ($("#camBox").clientWidth / 640) + ")";
 }
 addEventListener("resize", fitCamera);
 addEventListener("orientationchange", () => setTimeout(fitCamera, 200));
 
-function camStop(msg) {
+async function camStop(msg) {
   if (camReveal) { clearTimeout(camReveal); camReveal = null; }
+  for (const h of camListeners) { try { (await h).remove(); } catch (e) { /* gone */ } }
+  camListeners = [];
+  if (CameraStream) { try { await CameraStream.stop(); } catch (e) { /* not running */ } }
+  if (camImg) { camImg.remove(); camImg = null; }
   if (camFrame) { camFrame.remove(); camFrame = null; }
   $("#camMsg").hidden = false;
   $("#camMsg").textContent = msg || "Camera off";
@@ -188,15 +196,43 @@ $("#camOn").onclick = async () => {
   const ok = await dog.enableVision(true);
   if (!ok) { camStop("The dog refused to start the camera."); return; }
 
-  const frame = document.createElement("iframe");
-  frame.title = "Live view from the camera in the dog's head";
-  frame.setAttribute("scrolling", "no");
-  camFrame = frame;
-  $("#camBox").appendChild(frame);
-  fitCamera();
-  // A multipart document has no reliable load event, so reveal after a beat.
-  camReveal = setTimeout(() => { $("#camMsg").hidden = true; }, 1400);
-  frame.src = dog.streamUrl() + "?t=" + Date.now();
+  let settled = false;
+  const reveal = () => { if (!settled) { settled = true; $("#camMsg").hidden = true; } };
+
+  if (CameraStream) {
+    const img = document.createElement("img");
+    img.alt = "Live view from the camera in the dog's head";
+    camImg = img;
+    $("#camBox").appendChild(img);
+    camListeners.push(CameraStream.addListener("frame", (ev) => {
+      if (img !== camImg) return;
+      img.src = "data:image/jpeg;base64," + ev.data;
+      reveal();
+    }));
+    camListeners.push(CameraStream.addListener("error", (ev) => {
+      camStop("Camera: " + (ev && ev.message ? ev.message : "stream error"));
+    }));
+    try {
+      await CameraStream.start({ url: dog.streamUrl() });
+    } catch (e) {
+      camStop("Could not start the camera reader.");
+      return;
+    }
+    // If no frame has painted in a few seconds, say so rather than hang.
+    camReveal = setTimeout(() => {
+      if (!settled) camStop("No frames from the camera.");
+    }, 6000);
+  } else {
+    // Dev fallback: an iframe renders the multipart stream in a desktop browser.
+    const frame = document.createElement("iframe");
+    frame.title = "Live view from the camera in the dog's head";
+    frame.setAttribute("scrolling", "no");
+    camFrame = frame;
+    $("#camBox").appendChild(frame);
+    fitCamera();
+    camReveal = setTimeout(reveal, 1400);
+    frame.src = dog.streamUrl() + "?t=" + Date.now();
+  }
 };
 
 $("#camOff").onclick = () => {
