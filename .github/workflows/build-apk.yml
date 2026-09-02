@@ -3,6 +3,12 @@ name: Build APK
 on:
   push:
     branches: [main]
+    # Documentation-only edits do not change the APK.
+    paths-ignore:
+      - "**.md"
+      - ".github/FUNDING.yml"
+      - ".gitignore"
+      - ".gitattributes"
   workflow_dispatch:
 
 permissions:
