@@ -31,7 +31,7 @@ network the dog itself broadcasts.
 
 - **Two thumb pads** — left drives, right turns, with a throttle slider.
 - **180 built-in actions**, searchable — barks, sits, stretches, tricks.
-- **Posture** — body pitch/yaw/roll and head pitch/yaw.
+- **Posture** — body pitch/yaw and head pitch/yaw (roll is not implemented in this firmware).
 - **Camera** — MJPEG from port 8080.
 - **Telemetry** — battery percentage, voltage, temperature, mood, satiety, firmware.
 - **Walking mode** — desktop (restricted) vs ground (full gait).
@@ -58,6 +58,11 @@ http://<ip>:8080                     MJPEG camera
 
 It also pushes `{"type":"event","event_type":"emotion_update"}` frames carrying
 mood, arousal, satiety and fatigue.
+
+`attitude_control` takes `body_pitch`, `body_yaw`, `head_pitch`, `head_yaw` in
+radians — confirmed by moving the robot and measuring the camera image. `body_roll`
+and every alternative spelling of roll do nothing, so this firmware is pitch and
+yaw only.
 
 Commands used here: `gait_control` · `play_motion` · `cancel_motion` ·
 `stop_all_motions` · `self_recover` · `attitude_control` · `set_robot_mode` ·
@@ -117,8 +122,8 @@ donations are welcome and entirely optional:
 **`philipchuaonline@gmail.com`**
 
 No obligation whatsoever. Bug reports, firmware findings from other versions,
-and pull requests are worth just as much — especially if you can confirm the
-`attitude_control` field names, or map the command set on 2.4.5+.
+and pull requests are worth just as much — especially if you can map the
+command set on firmware 2.4.5 and later.
 
 ## Developing
 

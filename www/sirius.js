@@ -25,7 +25,7 @@ export class Sirius extends EventTarget {
     this.battery = {};
     this.emotion = {};
     this.vel = { linear_x: 0, linear_y: 0, angular_z: 0 };
-    this.posture = { body_pitch: 0, body_yaw: 0, body_roll: 0, head_pitch: 0, head_yaw: 0 };
+    this.posture = { body_pitch: 0, body_yaw: 0, head_pitch: 0, head_yaw: 0 };
     this.throttle = 0.6;
     this.volume = null;
     this.log = [];
@@ -220,7 +220,8 @@ export class Sirius extends EventTarget {
     for (const k of Object.keys(this.posture)) {
       if (k in p) this.posture[k] = clamp(p[k]);
     }
-    // Documented safe range is well inside +/-0.524 rad.
+    // Documented safe range is well inside +/-0.524 rad. Measured on the
+    // robot: pitch and yaw move it, roll does nothing under any name.
     const out = {};
     for (const [k, v] of Object.entries(this.posture)) out[k] = +(v * 0.35).toFixed(4);
     this.fire("attitude_control", out);

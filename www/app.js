@@ -93,8 +93,10 @@ $("#throttle").addEventListener("input", (e) => {
   $("#outThrottle").textContent = Math.round(dog.throttle * 100) + "%";
 });
 
+// body_roll is deliberately absent: measured on the robot, it does nothing
+// under any field name. This firmware does pitch and yaw only.
 const SLIDERS = [
-  ["body_pitch", "body pitch"], ["body_yaw", "body yaw"], ["body_roll", "body roll"],
+  ["body_pitch", "body pitch"], ["body_yaw", "body yaw"],
   ["head_pitch", "head pitch"], ["head_yaw", "head yaw"],
 ];
 $("#sliders").innerHTML = SLIDERS.map(([k, label]) =>
