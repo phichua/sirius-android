@@ -32,7 +32,7 @@ network the dog itself broadcasts.
 - **Two thumb pads** — left drives, right turns, with a throttle slider.
 - **180 built-in actions**, searchable — barks, sits, stretches, tricks.
 - **Posture** — body pitch/yaw and head pitch/yaw (roll is not implemented in this firmware).
-- **Camera** — MJPEG from port 8080.
+- **Camera** — read natively (a Capacitor plugin) and shown frame by frame; the WebView cannot display the raw MJPEG stream directly.
 - **Telemetry** — battery percentage, voltage, temperature, mood, satiety, firmware.
 - **Walking mode** — desktop (restricted) vs ground (full gait).
 - **STOP** — always visible in the top bar.
@@ -68,6 +68,15 @@ Commands used here: `gait_control` · `play_motion` · `cancel_motion` ·
 `stop_all_motions` · `self_recover` · `attitude_control` · `set_robot_mode` ·
 `set_behavior_pause` · `get_actions` · `get_battery_status` · `get_robot_mode` ·
 `check_update`. The full 41-command map is in `../sirius-console/README.md`.
+
+### The camera needs a native reader
+
+The dog serves the camera as `multipart/x-mixed-replace` MJPEG on port 8080, and
+it only produces frames after `enable_detection {enabled:true}`. A desktop browser
+renders that stream, but the Android WebView refuses it in an `<img>`, a `fetch`
+(also no CORS header) and an `<iframe>`. So the app reads it in native code
+(`CameraStreamPlugin`), splits it into complete JPEGs, and hands the WebView one
+at a time as a `data:` URI — which renders everywhere.
 
 ### Three traps
 
