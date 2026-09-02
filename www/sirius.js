@@ -10,6 +10,7 @@ const PORT_WS = 8765;
 const PORT_VIDEO = 8080;
 const CONTROL_HZ = 8;
 const ACTION_PRIORITY = 5;      // below this, autonomous behaviour wins
+const AUDIO_NODE = "wmix_audio_player_node";   // volume lives on a ROS parameter
 
 export class Sirius extends EventTarget {
   constructor() {
@@ -26,6 +27,7 @@ export class Sirius extends EventTarget {
     this.vel = { linear_x: 0, linear_y: 0, angular_z: 0 };
     this.posture = { body_pitch: 0, body_yaw: 0, body_roll: 0, head_pitch: 0, head_yaw: 0 };
     this.throttle = 0.6;
+    this.volume = null;
     this.log = [];
     this._pending = new Map();
     this._seq = 0;
@@ -122,6 +124,7 @@ export class Sirius extends EventTarget {
     if (list) this.actions = list.actions || [];
     this.note(`${this.actions.length} actions available`);
     this.refreshBattery();
+    this.getVolume();
     this.changed();
   }
 
@@ -276,6 +279,29 @@ export class Sirius extends EventTarget {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Volume is not a command - it is a ROS parameter on the audio node, reached
+   * through get/set_node_parameter. Range 0-100.
+   */
+  async getVolume() {
+    const r = await this.request("get_node_parameter",
+      { node_name: AUDIO_NODE, parameter_name: "audio_volume" });
+    const v = r && r.parameters && r.parameters.audio_volume;
+    if (typeof v === "number") { this.volume = v; this.changed(); }
+    return this.volume;
+  }
+
+  async setVolume(v) {
+    v = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    const r = await this.request("set_node_parameter",
+      { node_name: AUDIO_NODE, parameter_name: "audio_volume", parameter_value: v });
+    if (r === null) { this.note("could not set the volume"); return false; }
+    this.volume = v;
+    this.note(`volume ${v}%`);
+    this.changed();
+    return true;
   }
 
   async refreshBattery() {

@@ -121,6 +121,18 @@ $("#centre").onclick = () => {
 };
 
 /* ---------------- buttons ---------------- */
+// Update the number as it moves, but only send on release - dragging would
+// otherwise fire a request per pixel.
+let volumeTouched = false;
+$("#volume").addEventListener("input", (e) => {
+  volumeTouched = true;
+  $("#outVolume").textContent = e.target.value;
+});
+$("#volume").addEventListener("change", (e) => {
+  volumeTouched = false;
+  dog.setVolume(e.target.value);
+});
+
 $("#stop").onclick = () => dog.stop();
 $("#standup").onclick = () => dog.standUp();
 $("#estop").onclick = () => (dog.estop ? dog.clearEstop() : dog.emergencyStop());
@@ -216,6 +228,12 @@ function render() {
     actionsRendered = dog.actions.length;
     $("#search").placeholder = `search ${actionsRendered} actions`;
     renderActions();
+  }
+
+  // Don't yank the slider out from under a thumb that is mid-drag.
+  if (dog.volume != null && !volumeTouched && document.activeElement !== $("#volume")) {
+    $("#volume").value = dog.volume;
+    $("#outVolume").textContent = dog.volume;
   }
 
   const b = dog.battery, e = dog.emotion;
