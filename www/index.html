@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>Sirius</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b23; --panel2:#1d232d; --line:#2a323f;
+    --ink:#e6edf6; --dim:#8b98ab; --accent:#4da3ff; --good:#3ecf8e;
+    --warn:#ffb454; --bad:#ff5c5c;
+    --top:env(safe-area-inset-top); --bot:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+    font:15px/1.5 ui-sans-serif,system-ui,Roboto,"Segoe UI",sans-serif;
+    user-select:none;-webkit-user-select:none}
+
+  /* ---- top bar ---- */
+  header{position:fixed;top:0;left:0;right:0;z-index:30;
+    padding:calc(10px + var(--top)) 14px 10px;background:var(--panel);
+    border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);flex:none}
+  .dot.on{background:var(--good)}
+  #status{font-size:12px;color:var(--dim);flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #estop{background:var(--bad);border:0;color:#fff;font-weight:700;font-size:14px;
+    letter-spacing:.04em;padding:11px 20px;border-radius:9px;flex:none}
+  #estop:active{background:#ff7a7a}
+
+  /* ---- panes ---- */
+  main{position:absolute;top:0;bottom:0;left:0;right:0;
+    padding:calc(62px + var(--top)) 14px calc(74px + var(--bot));overflow-y:auto}
+  .pane{display:none}
+  .pane.on{display:block}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--dim);margin:18px 0 10px;font-weight:600}
+  h2:first-child{margin-top:6px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .muted{color:var(--dim);font-size:12px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:12px 16px;font:inherit;font-size:14px}
+  button:active{background:#2b3645}
+  button.on{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600}
+  button.wide{flex:1}
+  input{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:9px;padding:12px;font:inherit;width:100%}
+
+  /* ---- pads ---- */
+  .pads{display:flex;gap:12px;justify-content:space-between;margin:4px 0 14px}
+  .padwrap{flex:1;min-width:0}
+  .pad{position:relative;width:100%;aspect-ratio:1;border-radius:50%;
+    background:#0c1017;border:1px solid var(--line);touch-action:none}
+  .pad::before,.pad::after{content:"";position:absolute;background:var(--line)}
+  .pad::before{left:50%;top:10%;bottom:10%;width:1px;transform:translateX(-50%)}
+  .pad::after{top:50%;left:10%;right:10%;height:1px;transform:translateY(-50%)}
+  .nub{position:absolute;width:34%;height:34%;border-radius:50%;background:var(--accent);
+    left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;
+    box-shadow:0 3px 10px rgba(0,0,0,.5)}
+  .pad.live .nub{background:#7cc0ff}
+  .padlab{text-align:center;color:var(--dim);font-size:11px;margin-top:7px}
+
+  .sl{display:grid;grid-template-columns:1fr 52px;gap:10px;align-items:center;margin:10px 0}
+  .sl .lab{grid-column:1/-1;color:var(--dim);font-size:12px;margin-bottom:-4px}
+  .sl output{font-variant-numeric:tabular-nums;text-align:right;color:var(--dim);font-size:12px}
+  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;
+    width:100%;padding:0;border:0;height:26px}
+  input[type=range]::-webkit-slider-runnable-track{height:5px;background:var(--line);border-radius:3px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;
+    border-radius:50%;background:var(--ink);margin-top:-11px}
+
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;
+    border-bottom:1px solid var(--line);font-size:14px}
+  .kv:last-child{border-bottom:0}
+  .kv span:first-child{color:var(--dim)}
+  .kv span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+
+  .act{display:block;width:100%;text-align:left;background:var(--panel);
+    border:1px solid var(--line);padding:13px;border-radius:10px;margin-bottom:7px;
+    color:var(--ink);font-size:14px}
+  .act:active{background:var(--panel2)}
+  .act small{color:var(--dim);display:block;font-size:11px;margin-top:2px}
+
+  #camBox{background:#0a0d12;border:1px solid var(--line);border-radius:12px;
+    aspect-ratio:4/3;display:grid;place-items:center;overflow:hidden}
+  #camBox img{width:100%;height:100%;object-fit:contain}
+  #camMsg{margin:0;color:var(--dim);font-size:12px;text-align:center;padding:0 18px}
+
+  #log{background:#0a0d12;border:1px solid var(--line);border-radius:10px;padding:10px;
+    height:190px;overflow:auto;font:11px/1.6 ui-monospace,monospace;color:#9fb0c6;
+    white-space:pre-wrap;user-select:text;-webkit-user-select:text}
+
+  /* ---- tab bar ---- */
+  nav{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;
+    background:var(--panel);border-top:1px solid var(--line);
+    padding-bottom:var(--bot)}
+  nav button{flex:1;background:none;border:0;border-radius:0;padding:12px 4px 13px;
+    color:var(--dim);font-size:11px;display:flex;flex-direction:column;
+    align-items:center;gap:4px}
+  nav button.on{color:var(--accent)}
+  nav svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  /* ---- connect overlay ---- */
+  #gate{position:fixed;inset:0;z-index:40;background:var(--bg);
+    display:grid;place-items:center;padding:24px}
+  #gate.hide{display:none}
+  .gatebox{width:100%;max-width:340px}
+  .gatebox h1{font-size:20px;margin:0 0 6px}
+  .msg{margin-top:12px;font-size:13px;padding:11px;border-radius:9px;display:none}
+  .msg.show{display:block}
+  .msg.bad{background:#3a1414;border:1px solid #6b2020;color:#ffb0b0}
+  .msg.warn{background:#3a2a10;border:1px solid #6b4d19;color:#ffcf8a}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gatebox">
+    <h1>Sirius</h1>
+    <p class="muted" style="margin:0 0 16px">
+      Put the dog on the same Wi-Fi as this phone. Its IP is on its face screen
+      under Connection &mdash; use the <b>WiFi</b> line, not the Hotspot line.
+    </p>
+    <input id="host" placeholder="192.168.1.91" inputmode="decimal" autocomplete="off">
+    <button id="go" class="primary" style="width:100%;margin-top:10px">Connect</button>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</div>
+
+<header>
+  <span class="dot" id="dot"></span>
+  <span id="status">offline</span>
+  <button id="estop">STOP</button>
+</header>
+
+<main>
+  <section class="pane on" id="pane-drive">
+    <div class="pads">
+      <div class="padwrap">
+        <div class="pad" id="padMove"><div class="nub"></div></div>
+        <div class="padlab">move</div>
+      </div>
+      <div class="padwrap">
+        <div class="pad" id="padTurn"><div class="nub"></div></div>
+        <div class="padlab">turn</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sl">
+        <span class="lab">throttle &mdash; fraction of full travel</span>
+        <input type="range" id="throttle" min="0.1" max="1" step="0.05" value="0.6">
+        <output id="outThrottle">60%</output>
+      </div>
+      <div class="row">
+        <button class="wide" id="standup">Stand up</button>
+        <button class="wide" id="stop">Stop</button>
+      </div>
+    </div>
+    <h2>Posture</h2>
+    <div class="card" id="sliders"></div>
+  </section>
+
+  <section class="pane" id="pane-actions">
+    <input id="search" placeholder="search 180 actions" autocomplete="off" style="margin-bottom:12px">
+    <div id="actions"></div>
+  </section>
+
+  <section class="pane" id="pane-camera">
+    <div id="camBox"><p id="camMsg">Camera off</p></div>
+    <div class="row" style="margin-top:12px">
+      <button class="wide" id="camOn">Start</button>
+      <button class="wide" id="camOff">Stop</button>
+    </div>
+    <p class="muted" style="margin-top:12px">
+      MJPEG from port 8080. Firmware 2.4.7 and later moves this to WebRTC,
+      where this view stops working.
+    </p>
+  </section>
+
+  <section class="pane" id="pane-robot">
+    <div class="card" id="tel"></div>
+    <h2>Walking mode</h2>
+    <div class="card">
+      <div class="row">
+        <button class="wide" id="modeDesktop">Desktop</button>
+        <button class="wide" id="modeGround">Ground</button>
+      </div>
+      <p class="muted" style="margin:10px 0 0">
+        Desktop restricts the gait so it will not stride off a table. Ground
+        releases it &mdash; floor only, nothing here detects an edge.
+      </p>
+    </div>
+    <h2>Log</h2>
+    <div id="log"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="wide" id="disconnect">Disconnect</button>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button class="on" data-tab="drive">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+    Drive
+  </button>
+  <button data-tab="actions">
+    <svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h14"/></svg>
+    Actions
+  </button>
+  <button data-tab="camera">
+    <svg viewBox="0 0 24 24"><path d="M3 8h4l2-2h6l2 2h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    Camera
+  </button>
+  <button data-tab="robot">
+    <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 7V4M9 13h.01M15 13h.01"/></svg>
+    Robot
+  </button>
+</nav>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
