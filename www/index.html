@@ -94,9 +94,15 @@
   #camBox{position:relative;background:#0a0d12;border:1px solid var(--line);
     border-radius:12px;aspect-ratio:16/9;display:grid;place-items:center;overflow:hidden}
   /* Frames arrive from the native CameraStream plugin as base64 JPEGs and are
-     shown one at a time in this <img> via data: URIs - the WebView renders a
-     complete single JPEG fine, it only chokes on the multipart stream itself. */
+     shown one at a time via data: URIs - the WebView renders a complete single
+     JPEG fine, it only chokes on the multipart stream itself. */
   #camBox img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  #recDot{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;
+    font-size:var(--fs-micro);color:#fff;background:rgba(0,0,0,.45);
+    padding:4px 9px;border-radius:20px}
+  #recDot::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--bad);
+    animation:recpulse 1.1s ease-in-out infinite}
+  @keyframes recpulse{0%,100%{opacity:1}50%{opacity:.25}}
   #camMsg{margin:0;color:var(--dim);font-size:var(--fs-label);text-align:center;padding:0 18px}
 
   #log{background:#0a0d12;border:1px solid var(--line);border-radius:10px;padding:10px;
@@ -180,11 +186,19 @@
   </section>
 
   <section class="pane" id="pane-camera">
-    <div id="camBox"><p id="camMsg">Camera off</p></div>
+    <div id="camBox">
+      <p id="camMsg">Camera off</p>
+      <span id="recDot" hidden></span>
+    </div>
     <div class="row" style="margin-top:12px">
       <button class="wide" id="camOn">Start</button>
       <button class="wide" id="camOff">Stop</button>
     </div>
+    <div class="row" style="margin-top:8px">
+      <button class="wide" id="snap" disabled>Photo</button>
+      <button class="wide" id="rec" disabled>Record</button>
+    </div>
+    <p class="muted" id="saveMsg" style="margin-top:8px" hidden></p>
     <p class="muted" style="margin-top:12px">
       MJPEG from port 8080. Firmware 2.4.7 and later moves this to WebRTC,
       where this view stops working.

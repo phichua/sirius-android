@@ -170,6 +170,27 @@ let camImg = null;
 let camFrame = null;
 let camListeners = [];
 let camReveal = null;
+let lastFrameB64 = null;         // newest JPEG, for snapshots
+let recCanvas = null, recCtx = null;
+let mediaRecorder = null, recChunks = [], recTimer = null, recStart = 0;
+
+function saveMsg(text) {
+  const el = $("#saveMsg");
+  if (!text) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = text;
+}
+
+function setCamButtons(live) {
+  $("#snap").disabled = !live;
+  $("#rec").disabled = !live;
+  if (!live) stopRecording(true);
+}
+
+function stamp() {
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
 
 function fitCamera() {
   if (!camFrame) return;
@@ -180,11 +201,14 @@ addEventListener("orientationchange", () => setTimeout(fitCamera, 200));
 
 async function camStop(msg) {
   if (camReveal) { clearTimeout(camReveal); camReveal = null; }
+  stopRecording(true);
   for (const h of camListeners) { try { (await h).remove(); } catch (e) { /* gone */ } }
   camListeners = [];
   if (CameraStream) { try { await CameraStream.stop(); } catch (e) { /* not running */ } }
   if (camImg) { camImg.remove(); camImg = null; }
   if (camFrame) { camFrame.remove(); camFrame = null; }
+  lastFrameB64 = null;
+  setCamButtons(false);
   $("#camMsg").hidden = false;
   $("#camMsg").textContent = msg || "Camera off";
 }
@@ -206,8 +230,11 @@ $("#camOn").onclick = async () => {
     $("#camBox").appendChild(img);
     camListeners.push(CameraStream.addListener("frame", (ev) => {
       if (img !== camImg) return;
+      lastFrameB64 = ev.data;
       img.src = "data:image/jpeg;base64," + ev.data;
       reveal();
+      setCamButtons(true);
+      if (recCtx) drawFrameToCanvas(ev.data);   // feed the recorder
     }));
     camListeners.push(CameraStream.addListener("error", (ev) => {
       camStop("Camera: " + (ev && ev.message ? ev.message : "stream error"));
@@ -239,6 +266,106 @@ $("#camOff").onclick = () => {
   camStop();
   if (dog.connected) dog.enableVision(false);   // stop burning battery on both ends
 };
+
+/* ---------------- photo + recording ---------------- */
+$("#snap").onclick = async () => {
+  if (!lastFrameB64) { saveMsg("No frame to save yet."); return; }
+  if (!CameraStream) { saveMsg("Saving needs the app, not a browser."); return; }
+  try {
+    await CameraStream.saveMedia({
+      base64: lastFrameB64, mime: "image/jpeg", filename: "sirius_" + stamp() + ".jpg",
+    });
+    saveMsg("Photo saved to your gallery (Sirius album).");
+  } catch (e) {
+    saveMsg("Could not save the photo: " + (e && e.message ? e.message : e));
+  }
+};
+
+function drawFrameToCanvas(b64) {
+  const blob = b64ToBlob(b64, "image/jpeg");
+  createImageBitmap(blob).then((bm) => {
+    recCtx.drawImage(bm, 0, 0, recCanvas.width, recCanvas.height);
+    bm.close();
+  }).catch(() => { /* skip a bad frame */ });
+}
+
+function b64ToBlob(b64, type) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+
+function blobToB64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+function updateRecTimer() {
+  const secs = Math.floor((Date.now() - recStart) / 1000);
+  $("#recDot").textContent = "REC " + Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
+}
+
+$("#rec").onclick = () => {
+  if (mediaRecorder) { stopRecording(false); return; }
+  if (!camImg || !lastFrameB64) { saveMsg("Start the camera first."); return; }
+  if (typeof MediaRecorder === "undefined") { saveMsg("Recording is not supported here."); return; }
+
+  recCanvas = document.createElement("canvas");
+  recCanvas.width = 640; recCanvas.height = 360;
+  recCtx = recCanvas.getContext("2d");
+  drawFrameToCanvas(lastFrameB64);
+
+  const stream = recCanvas.captureStream(12);
+  const mime = ["video/webm;codecs=vp8", "video/webm"].find(
+    (m) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "video/webm";
+  recChunks = [];
+  mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+  mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  mediaRecorder.onstop = onRecordingStopped;
+  mediaRecorder.start(1000);
+
+  recStart = Date.now();
+  $("#recDot").hidden = false;
+  updateRecTimer();
+  recTimer = setInterval(updateRecTimer, 1000);
+  $("#rec").textContent = "Stop recording";
+  $("#rec").classList.add("on");
+  saveMsg("");
+};
+
+function stopRecording(silent) {
+  if (recTimer) { clearInterval(recTimer); recTimer = null; }
+  $("#recDot").hidden = true;
+  $("#rec").textContent = "Record";
+  $("#rec").classList.remove("on");
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    if (silent) mediaRecorder.onstop = null;    // discard on teardown
+    try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
+  }
+  if (silent) { mediaRecorder = null; recCtx = null; recCanvas = null; recChunks = []; }
+}
+
+async function onRecordingStopped() {
+  const chunks = recChunks;
+  mediaRecorder = null; recCtx = null; recCanvas = null; recChunks = [];
+  if (!chunks.length) { saveMsg("Nothing was recorded."); return; }
+  saveMsg("Saving the clip…");
+  try {
+    const blob = new Blob(chunks, { type: "video/webm" });
+    const b64 = await blobToB64(blob);
+    await CameraStream.saveMedia({
+      base64: b64, mime: "video/webm", filename: "sirius_" + stamp() + ".webm",
+    });
+    saveMsg("Video saved to your gallery (Sirius album).");
+  } catch (e) {
+    saveMsg("Could not save the video: " + (e && e.message ? e.message : e));
+  }
+}
 
 /* ---------------- safety ---------------- */
 // Keep the screen awake while connected: a phone that sleeps mid-drive with a

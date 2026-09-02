@@ -1,5 +1,11 @@
 package com.aureus.sirius;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Base64;
 
 import com.getcapacitor.JSObject;
@@ -54,6 +60,59 @@ public class CameraStreamPlugin extends Plugin {
     protected void handleOnDestroy() {
         stopInternal();
         super.handleOnDestroy();
+    }
+
+    /**
+     * Save a base64 photo or video into the device gallery under a "Sirius"
+     * album, via MediaStore. On Android 10+ this needs no storage permission.
+     */
+    @PluginMethod
+    public void saveMedia(PluginCall call) {
+        String base64 = call.getString("base64");
+        String mime = call.getString("mime", "image/jpeg");
+        String filename = call.getString("filename", "sirius");
+        if (base64 == null || base64.isEmpty()) {
+            call.reject("base64 is required");
+            return;
+        }
+        try {
+            byte[] data = Base64.decode(base64, Base64.DEFAULT);
+            boolean isVideo = mime.startsWith("video");
+            ContentResolver resolver = getContext().getContentResolver();
+            Uri collection = isVideo
+                    ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                    : MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, filename);
+            values.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+            if (Build.VERSION.SDK_INT >= 29) {
+                String dir = (isVideo ? Environment.DIRECTORY_MOVIES
+                        : Environment.DIRECTORY_PICTURES) + "/Sirius";
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, dir);
+                values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+            }
+
+            Uri item = resolver.insert(collection, values);
+            if (item == null) {
+                call.reject("could not create the gallery entry");
+                return;
+            }
+            java.io.OutputStream out = resolver.openOutputStream(item);
+            out.write(data);
+            out.flush();
+            out.close();
+            if (Build.VERSION.SDK_INT >= 29) {
+                values.clear();
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                resolver.update(item, values, null, null);
+            }
+            JSObject ret = new JSObject();
+            ret.put("uri", item.toString());
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("save failed: " + e.getMessage());
+        }
     }
 
     private void stopInternal() {
